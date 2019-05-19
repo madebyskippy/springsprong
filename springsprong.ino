@@ -1,8 +1,14 @@
 #include <Adafruit_NeoPixel.h>
 
 //******piezo stuff
-int piezoThreshold = 50;
-
+int piezoThreshold1 = 500;
+int piezoThreshold2 = 100;
+int input1state = 0;
+int input2state = 0;
+int input1states[] = {-1,-1,-1,-1,-1};
+int input2states[] = {-1,-1,-1,-1,-1};
+int input1average = -1;
+int input2average = -1;
 //******
 
 const float Pi = 3.14159;
@@ -17,13 +23,10 @@ bool GameOver = false;
 
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(ledAmount, 7, NEO_GRB + NEO_KHZ800);
 
-int input1State = 0;       
-int input2State = 0;
-
 int shotCounter = 1;
 int shotType = 0;
 int timer = 0;
-int hitIndex = 0;
+int hitIndex = 1;
 int hitThreshold = 0;
 int zenThreshold = 5;
 boolean zenMode = false;
@@ -50,26 +53,77 @@ void setup() {
   
 }
 
+void restart(){
+  input1state = 0;
+  input2state = 0;
+  for (int i=0; i<5; i++){
+    input1states[i]=-1;
+    input2states[i]=-1;
+  }
+  input1average = -1;
+  input2average = -1;
+
+  curLedIndex = 0;
+
+  shotCounter = 1;
+  shotType = 0;
+  timer = 0;
+  hitIndex = 1;
+  hitThreshold = 0;
+  Serial.println("!!!!!!!!!");
+  Serial.println("!!!!!!!!!");
+  Serial.println("!!!!!!!!!");
+
+  GameOver = false;
+  zenMode = false;
+  delayAmount = delayDefault;
+}
+
 void loop() {
   timer++;
   
-  input1State = analogRead(A0);
-  input2State = analogRead(A1);
-  
-  if (input1State > piezoThreshold || input2State > piezoThreshold){
-    Serial.print(input1State);
-    Serial.print("\t");
-    Serial.println(input2State);
-  }
-  
-  if (input1State > piezoThreshold){
-    hit(0,input1State);
-  }
-  
-  if (input2State > piezoThreshold){
-    hit(1,input2State);
-  }
+  input1state = analogRead(A0);
+  input2state = analogRead(A1);
 
+  //add current value to list to average
+  for (int i=1; i<5; i++){
+    input1states[i-1]=input1states[i];
+    input2states[i-1]=input2states[i];
+  }
+  input1states[4] = input1state;
+  input2states[4] = input2state;
+
+//  Serial.print(input1average);
+//  Serial.print("\t");
+//  Serial.print(input2average);
+//  Serial.print("\t");
+
+  //check if it's a hit
+  int old1avg = input1average;
+  input1average = averageOfValues(input1states);
+  if (input1average >= 0){
+    if (abs(old1avg-input1state)>piezoThreshold1){
+      hit(0,input1state,piezoThreshold1);
+      Serial.print("input 1");
+      Serial.print("\t");
+      Serial.println(input1average);
+    }else{
+//      Serial.print(0);
+//      Serial.print("\t");
+    }
+  }
+  int old2avg = input2average;
+  input2average = averageOfValues(input2states);
+  if (input2average >= 0){
+    if (abs(old2avg-input2state)>piezoThreshold2){
+      hit(1,input2state,piezoThreshold2);
+      Serial.print("input 2");
+      Serial.print("\t");
+      Serial.println(input2average);
+    }else{
+//      Serial.print(0);
+    }
+  }
 
   //--------for zen mode
   if (zenMode){
@@ -130,13 +184,15 @@ void loop() {
   strip.show();
 
   if (!GameOver){
-    moveball();
     if (curLedIndex > ledAmount-1 && indexUp){
+      Serial.println("gameover");
       GameOver = true;
     }
     if (curLedIndex < 0 && !indexUp){
+      Serial.println("gameover");
       GameOver = true;
     }
+    moveball();
   }
   
   delay(50);//delayAmount);
@@ -145,7 +201,11 @@ void loop() {
 
 
 //called when a player hits a button/ball/whatever
-void hit(int player, int power){
+void hit(int player, int power, int piezoThreshold){
+  if (GameOver){
+    restart();
+    return;
+  }
   //for each individual threshold, check if that's where the player hit
   //and send that info to a switch statement that will determine which type of hit it is
   //but also just changes direction of the ball
@@ -155,7 +215,7 @@ void hit(int player, int power){
         indexUp = true;
         hitIndex = curLedIndex;
         hitThreshold = curLedIndex;
-        HitCounter(i,power);
+        HitCounter(i,power, piezoThreshold);
         break;
       }
     }else if (player==1 && indexUp){
@@ -164,7 +224,7 @@ void hit(int player, int power){
         indexUp = false;
         hitIndex = curLedIndex;
         hitThreshold = ledAmount - curLedIndex;
-        HitCounter(i,power);
+        HitCounter(i,power, piezoThreshold);
         
         break;
       }
@@ -183,7 +243,7 @@ void generateRandomColor(){
   zenTargetColor[2] += 15;
 }
 
-void HitCounter(int i, int power){
+void HitCounter(int i, int power, int piezoThreshold){
   timer = 0;
   shotType = i;
   float change = max(float(power - piezoThreshold),800) / 800;
@@ -237,6 +297,24 @@ void moveball(){
     break;
   }
 
+}
+
+int averageOfValues(int vals[]){
+  int total = -1;
+  int count = 0;
+  for (int i=0; i<5; i++){
+    if (vals[i] >= 0){
+      count++;
+      total += vals[i];
+    }
+  }
+  if (total<0 && count>0){
+    total = 0;
+  }
+  if (total<0 && count<1){
+    return -1;
+  }
+  return total/count;
 }
 
 //***********EASING FUNCTIONS************************************************
