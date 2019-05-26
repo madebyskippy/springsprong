@@ -20,13 +20,14 @@ int delayAmount = 150;
 int delayDefault = 150;
 bool indexUp = true;
 bool GameOver = false;
+bool whoWon = false;
 
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(ledAmount, 7, NEO_GRB + NEO_KHZ800);
 
 int shotCounter = 1;
 int shotType = 0;
 int timer = 0;
-int hitIndex = 1;
+int hitIndex = 0;
 int hitThreshold = 0;
 int zenThreshold = 5;
 boolean zenMode = false;
@@ -40,6 +41,8 @@ float zenColor[] = {50,50,50};
 float zenTargetColor[] = {50,50,50};
 int fadeSpeed = 10;
 int fadeIndex = 0;
+
+int endTime;
 
 void setup() {
 
@@ -68,19 +71,30 @@ void restart(){
   shotCounter = 1;
   shotType = 0;
   timer = 0;
-  hitIndex = 1;
+  hitIndex = 0;
   hitThreshold = 0;
+  zenThreshold = 5;
+
+  fadeSpeed = 10;
+  fadeIndex = 0;
   Serial.println("!!!!!!!!!");
   Serial.println("!!!!!!!!!");
   Serial.println("!!!!!!!!!");
 
   GameOver = false;
   zenMode = false;
+  whoWon = false;
+  indexUp = true;
   delayAmount = delayDefault;
+  
+  delay(delayAmount);
 }
 
 void loop() {
   timer++;
+  if (GameOver){
+    endTime++;
+  }
   
   input1state = analogRead(A0);
   input2state = analogRead(A1);
@@ -103,6 +117,9 @@ void loop() {
   input1average = averageOfValues(input1states);
   if (input1average >= 0){
     if (abs(old1avg-input1state)>piezoThreshold1){
+      if (GameOver && endTime > 50){
+        restart();
+      }
       hit(0,input1state,piezoThreshold1);
       Serial.print("input 1");
       Serial.print("\t");
@@ -116,6 +133,9 @@ void loop() {
   input2average = averageOfValues(input2states);
   if (input2average >= 0){
     if (abs(old2avg-input2state)>piezoThreshold2){
+      if (GameOver && endTime > 50){
+        restart();
+      }
       hit(1,input2state,piezoThreshold2);
       Serial.print("input 2");
       Serial.print("\t");
@@ -131,6 +151,9 @@ void loop() {
     zenColor[0] = zenColor[0] + (zenTargetColor[0]-zenColor[0])*(float(fadeIndex)/float(fadeSpeed));
     zenColor[1] = zenColor[1] + (zenTargetColor[1]-zenColor[1])*(float(fadeIndex)/float(fadeSpeed));
     zenColor[2] = zenColor[2] + (zenTargetColor[2]-zenColor[2])*(float(fadeIndex)/float(fadeSpeed));
+    zenColor[0] = zenColor[0] * 0.5;
+    zenColor[1] = zenColor[1] * 0.5;
+    zenColor[2] = zenColor[2] * 0.5;
     if (fadeIndex > fadeSpeed){
       generateRandomColor();
       fadeIndex = 0;
@@ -138,18 +161,17 @@ void loop() {
   }
 
   //draw all the lights
-  float brightness = (float(shotCounter)/float(zenThreshold))*50;
+  float brightness = (float(shotCounter-1)/float(zenThreshold))*25;
   for (int i=0; i<ledAmount; i++){
 //    brightness = 0;
-    if (GameOver){
-      strip.setPixelColor(i, 100,0,0);
-    }else if(zenMode){
+    if(zenMode){
       strip.setPixelColor(i, zenColor[0],zenColor[1],zenColor[2]);
     }else{
       strip.setPixelColor(i, brightness,brightness,brightness);
     }
   }
 
+//show hit areas
   for (int i=0; i<3; i++){
     strip.setPixelColor(threshold[i], thesholdColors[0+i*3],thesholdColors[1+i*3],thesholdColors[2+i*3]);
     strip.setPixelColor(ledAmount-1-threshold[i], thesholdColors[0+i*3],thesholdColors[1+i*3],thesholdColors[2+i*3]);
@@ -180,22 +202,45 @@ void loop() {
       strip.setPixelColor(min(ledAmount-1,curLedIndex+i),f*color[0],f*color[1],f*color[2]);
     }
   }
+
+  if (GameOver){
+    for (int i=0; i<6; i++){
+      if (whoWon){
+        strip.setPixelColor(i,0,100,0);
+      }else{
+        strip.setPixelColor(i,100,0,0);
+      }
+    }
+    for (int i=ledAmount-6; i<ledAmount; i++){
+      if (!whoWon){
+        strip.setPixelColor(i,0,100,0);
+      }else{
+        strip.setPixelColor(i,100,0,0);
+      }
+    }
+  }
   
   strip.show();
 
   if (!GameOver){
+    moveball();
     if (curLedIndex > ledAmount-1 && indexUp){
       Serial.println("gameover");
       GameOver = true;
+      hitIndex = curLedIndex;
+      whoWon = true;
+      endTime = timer;
     }
     if (curLedIndex < 0 && !indexUp){
       Serial.println("gameover");
       GameOver = true;
+      hitIndex = curLedIndex;
+      whoWon = false;
+      endTime = timer;
     }
-    moveball();
   }
   
-  delay(50);//delayAmount);
+  delay(35);//delayAmount);
     
 }
 
@@ -203,7 +248,6 @@ void loop() {
 //called when a player hits a button/ball/whatever
 void hit(int player, int power, int piezoThreshold){
   if (GameOver){
-    restart();
     return;
   }
   //for each individual threshold, check if that's where the player hit
@@ -248,18 +292,25 @@ void HitCounter(int i, int power, int piezoThreshold){
   shotType = i;
   float change = max(float(power - piezoThreshold),800) / 800;
   change *= 0.25;
-  change = 0.95 - change;
+  change = 0.95 - change; //caps it around 0.7
   Serial.print("CHANGE COEFFICIENT!!!\t");
   Serial.println(change);
-  if((i == 1 || i == 0) && !zenMode){
-    shotCounter ++;
-    delayAmount *= change;
-    if(shotCounter >= zenThreshold){
+  if((i == 1 || i == 0 || i == 2)){
+    if (!zenMode){
+      shotCounter ++;
+      delayAmount *= change;
+    }
+    if(shotCounter >= zenThreshold && !zenMode){
       zenMode = true;
-      delayAmount = delayDefault * 0.9;
+      delayAmount = delayDefault;
       fadeIndex = 0;
       generateRandomColor();
       zenColor[0]=50; zenColor[1]=50; zenColor[2]=50;
+    }
+    if (zenMode){
+      //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      //this speeds up the game indefinitely
+      delayAmount *= 0.95;
     }
   }else{
     zenMode = false;
@@ -273,23 +324,32 @@ void moveball(){
   
   int endPoint;
   if(indexUp){
-    endPoint = ledAmount - hitThreshold;
-    if(shotType == 2){
-      endPoint -= 2;
-    }
+    endPoint = ledAmount - hitThreshold + 1;
+//    if(shotType == 2){
+//      endPoint -= 2;
+//    }
   }else{
-    endPoint = hitThreshold - ledAmount;
-    if(shotType == 2){
-      endPoint += 2;
-    }
+    endPoint = hitThreshold - ledAmount - 1;
+//    if(shotType == 2){
+//      endPoint += 2;
+//    }
   }
  
   
   switch(shotType){
     case 0:
-      curLedIndex = (int)Circ_easeInOut(timer, hitIndex, endPoint, 0.01*delayAmount * ledAmount);
+      if (zenMode){
+        curLedIndex = (int)Circ_easeInOut(timer, hitIndex, endPoint, 0.01*delayAmount * ledAmount);
+      }else{
+        curLedIndex = (int)Circ_easeInOut(timer, hitIndex, endPoint, 0.01*delayAmount * ledAmount);
+      }
     break;
     case 1:
+      if (zenMode){
+        curLedIndex = (int)Linear_easeNone(timer, hitIndex, endPoint, 0.01*delayAmount * ledAmount);
+      }else{
+        curLedIndex = (int)Linear_easeNone(timer, hitIndex, endPoint, 0.01*delayAmount * ledAmount);
+      }
       curLedIndex = (int)Linear_easeNone(timer, hitIndex, endPoint, 0.01*delayAmount * ledAmount);
     break;
     case 2:
