@@ -12,12 +12,14 @@ int input2average = -1;
 //******
 
 const float Pi = 3.14159;
-const int ledAmount = 61;
+const int ledAmount = 144;
 const float speedUpValue = 0.9f;
 
 int curLedIndex = 0;
-int delayAmount = 150;
-int delayDefault = 150;
+int delayAmount = 1;
+int delayDefault = 1000;
+int ballSpeed = 1000;
+
 bool indexUp = true;
 bool GameOver = false;
 bool whoWon = false;
@@ -33,7 +35,7 @@ int zenThreshold = 5;
 boolean zenMode = false;
 int shotColors[] = {0,100,0, /**/ 0,100,25, /**/ 100,25,50};
 
-int threshold[] = {1,3,5};
+int threshold[] = {3,6,9};
 int thesholdColors[] = {100,0,0, /**/ 100,35,0, /**/ 100,90,0};
 int tail = 5;
 
@@ -85,7 +87,7 @@ void restart(){
   zenMode = false;
   whoWon = false;
   indexUp = true;
-  delayAmount = delayDefault;
+  ballSpeed = delayDefault;
   
   delay(delayAmount);
 }
@@ -204,14 +206,14 @@ void loop() {
   }
 
   if (GameOver){
-    for (int i=0; i<6; i++){
+    for (int i=0; i<10; i++){
       if (whoWon){
         strip.setPixelColor(i,0,100,0);
       }else{
         strip.setPixelColor(i,100,0,0);
       }
     }
-    for (int i=ledAmount-6; i<ledAmount; i++){
+    for (int i=ledAmount-10; i<ledAmount; i++){
       if (!whoWon){
         strip.setPixelColor(i,0,100,0);
       }else{
@@ -240,7 +242,7 @@ void loop() {
     }
   }
   
-  delay(35);//delayAmount);
+  delay(delayAmount);
     
 }
 
@@ -298,11 +300,11 @@ void HitCounter(int i, int power, int piezoThreshold){
   if((i == 1 || i == 0 || i == 2)){
     if (!zenMode){
       shotCounter ++;
-      delayAmount *= change;
+      ballSpeed *= change;
     }
     if(shotCounter >= zenThreshold && !zenMode){
       zenMode = true;
-      delayAmount = delayDefault;
+      ballSpeed = delayDefault;
       fadeIndex = 0;
       generateRandomColor();
       zenColor[0]=50; zenColor[1]=50; zenColor[2]=50;
@@ -310,12 +312,12 @@ void HitCounter(int i, int power, int piezoThreshold){
     if (zenMode){
       //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       //this speeds up the game indefinitely
-      delayAmount *= 0.95;
+      ballSpeed *= 0.95;
     }
   }else{
     zenMode = false;
     shotCounter = 1;
-    delayAmount = delayDefault;
+    ballSpeed = delayDefault;
   }
 }
 
@@ -339,21 +341,21 @@ void moveball(){
   switch(shotType){
     case 0:
       if (zenMode){
-        curLedIndex = (int)Circ_easeInOut(timer, hitIndex, endPoint, 0.01*delayAmount * ledAmount);
+        curLedIndex = (int)Circ_easeInOut(timer, hitIndex, endPoint, ballSpeed/delayAmount);
       }else{
-        curLedIndex = (int)Circ_easeInOut(timer, hitIndex, endPoint, 0.01*delayAmount * ledAmount);
+        curLedIndex = (int)Circ_easeInOut(timer, hitIndex, endPoint, ballSpeed/delayAmount);
       }
     break;
     case 1:
       if (zenMode){
-        curLedIndex = (int)Linear_easeNone(timer, hitIndex, endPoint, 0.01*delayAmount * ledAmount);
+        curLedIndex = (int)Linear_easeNone(timer, hitIndex, endPoint, ballSpeed/delayAmount);
       }else{
-        curLedIndex = (int)Linear_easeNone(timer, hitIndex, endPoint, 0.01*delayAmount * ledAmount);
+        curLedIndex = (int)Linear_easeNone(timer, hitIndex, endPoint, ballSpeed/delayAmount);
       }
-      curLedIndex = (int)Linear_easeNone(timer, hitIndex, endPoint, 0.01*delayAmount * ledAmount);
+      
     break;
     case 2:
-      curLedIndex = (int)Bounce_easeOut(timer, hitIndex, endPoint, 0.01*delayAmount * ledAmount);
+      curLedIndex = (int)Bounce_easeOut(timer, hitIndex, endPoint, ballSpeed/delayAmount);
     break;
   }
 
