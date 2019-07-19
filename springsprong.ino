@@ -17,8 +17,8 @@ const float speedUpValue = 0.9f;
 
 int curLedIndex = 0;
 int delayAmount = 1;
-int delayDefault = 1000;
-int ballSpeed = 1000;
+int delayDefault = 700;
+int ballSpeed = 700;
 
 bool indexUp = true;
 bool GameOver = false;
@@ -27,7 +27,7 @@ bool whoWon = false;
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(ledAmount, 7, NEO_GRB + NEO_KHZ800);
 
 int shotCounter = 1;
-int shotType = 0;
+int shotType = 2;
 int timer = 0;
 int hitIndex = 0;
 int hitThreshold = 0;
@@ -45,7 +45,7 @@ int fadeSpeed = 10;
 int fadeIndex = 0;
 
 int endTime;
-int endTimeDelay=1500;
+int endTimeDelay=500;
 
 //score
 int playerScores[] = {0,0};
@@ -77,20 +77,23 @@ void restart(){
   shotCounter = 1;
   shotType = 2;
   timer = 0;
-  hitIndex = 0;
   hitThreshold = 0;
   zenThreshold = 5;
 
   fadeSpeed = 10;
   fadeIndex = 0;
-  Serial.println("!!!!!!!!!");
-  Serial.println("!!!!!!!!!");
-  Serial.println("!!!!!!!!!");
 
+  if(whoWon){
+    indexUp = true;
+    curLedIndex =threshold[2];
+  }else{
+    indexUp = false;
+    curLedIndex = ledAmount - threshold[2];
+  }
+  hitIndex = curLedIndex; 
   GameOver = false;
   zenMode = false;
   whoWon = false;
-  indexUp = true;
   ballSpeed = delayDefault;
   endTime = 0;
 }
@@ -122,13 +125,14 @@ void loop() {
   input1average = averageOfValues(input1states);
   if (input1average >= 0){
     if (abs(old1avg-input1state)>piezoThreshold1){
-      if (GameOver && endTime > endTimeDelay){
+      if (GameOver && whoWon && endTime > endTimeDelay){
         restart();
+      }else{
+        hit(0,input1state,piezoThreshold1);
       }
-      hit(0,input1state,piezoThreshold1);
-      Serial.print("input 1");
-      Serial.print("\t");
-      Serial.println(input1average);
+//      Serial.print("input 1");
+//      Serial.print("\t");
+//      Serial.println(input1average);
     }else{
 //      Serial.print(0);
 //      Serial.print("\t");
@@ -138,46 +142,24 @@ void loop() {
   input2average = averageOfValues(input2states);
   if (input2average >= 0){
     if (abs(old2avg-input2state)>piezoThreshold2){
-      if (GameOver && endTime > endTimeDelay){
+      if (GameOver && !whoWon && endTime > endTimeDelay){
         restart();
+      }else{
+        hit(1,input2state,piezoThreshold2);
       }
-      hit(1,input2state,piezoThreshold2);
-      Serial.print("input 2");
-      Serial.print("\t");
-      Serial.println(input2average);
+//      Serial.print("input 2");
+//      Serial.print("\t");
+//      Serial.println(input2average);
     }else{
 //      Serial.print(0);
     }
   }
 
-  
-  //--------for zen mode
-//  if (zenMode){
-//    fadeIndex++;
-//    zenColor[0] = zenColor[0] + (zenTargetColor[0]-zenColor[0])*(float(fadeIndex)/float(fadeSpeed));
-//    zenColor[1] = zenColor[1] + (zenTargetColor[1]-zenColor[1])*(float(fadeIndex)/float(fadeSpeed));
-//    zenColor[2] = zenColor[2] + (zenTargetColor[2]-zenColor[2])*(float(fadeIndex)/float(fadeSpeed));
-//    zenColor[0] = zenColor[0] * 0.5;
-//    zenColor[1] = zenColor[1] * 0.5;
-//    zenColor[2] = zenColor[2] * 0.5;
-//    if (fadeIndex > fadeSpeed){
-//      generateRandomColor();
-//      fadeIndex = 0;
-//    }
-//  }
-
   //draw all the lights
-  float brightness = (float(shotCounter)/(float)100);
+  //reset the board
+  float brightness = 0;
   for (int i=0; i<ledAmount; i++){
-//    brightness = 0;
-    if(zenMode){
-      //do something better
-      //strip.setPixelColor(i, zenColor[0],zenColor[1],zenColor[2]);
-      strip.setPixelColor(i, brightness,brightness,brightness);
-    }else{
-      //do something better
-      strip.setPixelColor(i, brightness,brightness,brightness);
-    }
+    strip.setPixelColor(i, brightness,brightness,brightness);
   }
 
 //show hit areas
@@ -189,11 +171,6 @@ void loop() {
   
   //determine which color based on what direction its going
   float color[] = {brightness,brightness,brightness};
-//  if(indexUp){
-//    color[1] = 100;
-//  }else{
-//    color[2] = 100;
-//  }
   color[0] = shotColors[3*shotType];
   color[1] = shotColors[1+3*shotType];
   color[2] = shotColors[2+3*shotType];
@@ -273,9 +250,6 @@ void loop() {
 
 //called when a player hits a button/ball/whatever
 void hit(int player, int power, int piezoThreshold){
-  if (GameOver){
-    return;
-  }
   //for each individual threshold, check if that's where the player hit
   //and send that info to a switch statement that will determine which type of hit it is
   //but also just changes direction of the ball
@@ -317,16 +291,16 @@ void HitCounter(int i, int power, int piezoThreshold){
   timer = 0;
   shotType = i;
   float change = max(float(power - piezoThreshold), 800) / 800;
-  change *= 100;
-//  change = 0.9 - change; //puts range from 0.9 to 0.8
+  change *= 50;
+
   Serial.print("CHANGE COEFFICIENT!!!\t");
   Serial.println(change);
   if((i == 1 || i == 0 || i == 2)){
     if (!zenMode){
       shotCounter ++;
       ballSpeed -= change;
-      if(ballSpeed < 100){
-        ballSpeed = 100;
+      if(ballSpeed < 150){
+        ballSpeed = 150;
       }
     }
     if (zenMode){
@@ -361,9 +335,9 @@ void moveball(){
   switch(shotType){
     case 0:
       if (zenMode){
-        curLedIndex = (int)Circ_easeOut(timer, hitIndex, endPoint, ballSpeed/delayAmount);
+        curLedIndex = (int)Circ_easeOut(timer, hitIndex, endPoint, (ballSpeed/2)/delayAmount);
       }else{
-        curLedIndex = (int)Circ_easeOut(timer, hitIndex, endPoint, ballSpeed/delayAmount);
+        curLedIndex = (int)Circ_easeOut(timer, hitIndex, endPoint, (ballSpeed/2)/delayAmount);
       }
     break;
     case 1:
