@@ -35,9 +35,9 @@ int zenThreshold = 5;
 boolean zenMode = false;
 int shotColors[] = {0,100,0, /**/ 0,100,25, /**/ 100,25,50};
 
-int threshold[] = {3,6,9};
+int threshold[] = {4,8,12};
 int thesholdColors[] = {100,0,0, /**/ 100,35,0, /**/ 100,90,0};
-int tail = 5;
+int tail = ledAmount - 10;
 
 float zenColor[] = {50,50,50};
 float zenTargetColor[] = {50,50,50};
@@ -45,6 +45,10 @@ int fadeSpeed = 10;
 int fadeIndex = 0;
 
 int endTime;
+int endTimeDelay=1500;
+
+//score
+int playerScores[] = {0,0};
 
 void setup() {
 
@@ -71,7 +75,7 @@ void restart(){
   curLedIndex = 0;
 
   shotCounter = 1;
-  shotType = 0;
+  shotType = 2;
   timer = 0;
   hitIndex = 0;
   hitThreshold = 0;
@@ -88,8 +92,7 @@ void restart(){
   whoWon = false;
   indexUp = true;
   ballSpeed = delayDefault;
-  
-  delay(delayAmount);
+  endTime = 0;
 }
 
 void loop() {
@@ -119,7 +122,7 @@ void loop() {
   input1average = averageOfValues(input1states);
   if (input1average >= 0){
     if (abs(old1avg-input1state)>piezoThreshold1){
-      if (GameOver && endTime > 50){
+      if (GameOver && endTime > endTimeDelay){
         restart();
       }
       hit(0,input1state,piezoThreshold1);
@@ -135,7 +138,7 @@ void loop() {
   input2average = averageOfValues(input2states);
   if (input2average >= 0){
     if (abs(old2avg-input2state)>piezoThreshold2){
-      if (GameOver && endTime > 50){
+      if (GameOver && endTime > endTimeDelay){
         restart();
       }
       hit(1,input2state,piezoThreshold2);
@@ -147,36 +150,40 @@ void loop() {
     }
   }
 
+  
   //--------for zen mode
-  if (zenMode){
-    fadeIndex++;
-    zenColor[0] = zenColor[0] + (zenTargetColor[0]-zenColor[0])*(float(fadeIndex)/float(fadeSpeed));
-    zenColor[1] = zenColor[1] + (zenTargetColor[1]-zenColor[1])*(float(fadeIndex)/float(fadeSpeed));
-    zenColor[2] = zenColor[2] + (zenTargetColor[2]-zenColor[2])*(float(fadeIndex)/float(fadeSpeed));
-    zenColor[0] = zenColor[0] * 0.5;
-    zenColor[1] = zenColor[1] * 0.5;
-    zenColor[2] = zenColor[2] * 0.5;
-    if (fadeIndex > fadeSpeed){
-      generateRandomColor();
-      fadeIndex = 0;
-    }
-  }
+//  if (zenMode){
+//    fadeIndex++;
+//    zenColor[0] = zenColor[0] + (zenTargetColor[0]-zenColor[0])*(float(fadeIndex)/float(fadeSpeed));
+//    zenColor[1] = zenColor[1] + (zenTargetColor[1]-zenColor[1])*(float(fadeIndex)/float(fadeSpeed));
+//    zenColor[2] = zenColor[2] + (zenTargetColor[2]-zenColor[2])*(float(fadeIndex)/float(fadeSpeed));
+//    zenColor[0] = zenColor[0] * 0.5;
+//    zenColor[1] = zenColor[1] * 0.5;
+//    zenColor[2] = zenColor[2] * 0.5;
+//    if (fadeIndex > fadeSpeed){
+//      generateRandomColor();
+//      fadeIndex = 0;
+//    }
+//  }
 
   //draw all the lights
-  float brightness = (float(shotCounter-1)/float(zenThreshold))*25;
+  float brightness = (float(shotCounter)/(float)100);
   for (int i=0; i<ledAmount; i++){
 //    brightness = 0;
     if(zenMode){
-      strip.setPixelColor(i, zenColor[0],zenColor[1],zenColor[2]);
+      //do something better
+      //strip.setPixelColor(i, zenColor[0],zenColor[1],zenColor[2]);
+      strip.setPixelColor(i, brightness,brightness,brightness);
     }else{
+      //do something better
       strip.setPixelColor(i, brightness,brightness,brightness);
     }
   }
 
 //show hit areas
   for (int i=0; i<3; i++){
-    strip.setPixelColor(threshold[i], thesholdColors[0+i*3],thesholdColors[1+i*3],thesholdColors[2+i*3]);
-    strip.setPixelColor(ledAmount-1-threshold[i], thesholdColors[0+i*3],thesholdColors[1+i*3],thesholdColors[2+i*3]);
+    strip.setPixelColor(threshold[i], shotColors[0+i*3],shotColors[1+i*3],shotColors[2+i*3]);
+    strip.setPixelColor(ledAmount-1-threshold[i], shotColors[0+i*3],shotColors[1+i*3],shotColors[2+i*3]);
   }
   
   
@@ -199,26 +206,41 @@ void loop() {
     float f = 1 - float(i)/float(shotCounter) + 0.1;
     f = f * 0.5;
     if (indexUp){
-      strip.setPixelColor(max(0,curLedIndex-i),f*color[0],f*color[1],f*color[2]);
+      if(curLedIndex - i > hitIndex){
+        strip.setPixelColor(max(0,curLedIndex-i),f*color[0],f*color[1],f*color[2]);
+      }
     }else{
-      strip.setPixelColor(min(ledAmount-1,curLedIndex+i),f*color[0],f*color[1],f*color[2]);
+      if(curLedIndex + i < hitIndex){
+        strip.setPixelColor(min(ledAmount-1,curLedIndex+i),f*color[0],f*color[1],f*color[2]);
+      }
     }
   }
 
+  strip.setPixelColor(0, 100,0,0);
+  strip.setPixelColor(ledAmount-1, 100,0,0);
+
   if (GameOver){
-    for (int i=0; i<10; i++){
+    for (int i=0; i<ledAmount; i++){
+      strip.setPixelColor(i,0,0,0);
+    }
+    for (int i=0; i<playerScores[0]+1; i++){
       if (whoWon){
-        strip.setPixelColor(i,0,100,0);
+        strip.setPixelColor(i+1,0,100,0);
       }else{
-        strip.setPixelColor(i,100,0,0);
+        strip.setPixelColor(i+1,100,0,0);
       }
     }
-    for (int i=ledAmount-10; i<ledAmount; i++){
+    for (int i=0; i<playerScores[1]+1; i++){
       if (!whoWon){
-        strip.setPixelColor(i,0,100,0);
+        strip.setPixelColor(ledAmount-2-i,0,100,0);
       }else{
-        strip.setPixelColor(i,100,0,0);
+        strip.setPixelColor(ledAmount-2-i,100,0,0);
       }
+    }
+    
+    if (endTime > endTimeDelay){
+        strip.setPixelColor(0,50,50,50);
+        strip.setPixelColor(ledAmount-1,50,50,50);
     }
   }
   
@@ -231,6 +253,7 @@ void loop() {
       GameOver = true;
       hitIndex = curLedIndex;
       whoWon = true;
+      playerScores[0]++;
       endTime = timer;
     }
     if (curLedIndex < 0 && !indexUp){
@@ -238,6 +261,7 @@ void loop() {
       GameOver = true;
       hitIndex = curLedIndex;
       whoWon = false;
+      playerScores[1]++;
       endTime = timer;
     }
   }
@@ -292,22 +316,18 @@ void generateRandomColor(){
 void HitCounter(int i, int power, int piezoThreshold){
   timer = 0;
   shotType = i;
-  float change = max(float(power - piezoThreshold),800) / 800;
-  change *= 0.25;
-  change = 0.95 - change; //caps it around 0.7
+  float change = max(float(power - piezoThreshold), 800) / 800;
+  change *= 100;
+//  change = 0.9 - change; //puts range from 0.9 to 0.8
   Serial.print("CHANGE COEFFICIENT!!!\t");
   Serial.println(change);
   if((i == 1 || i == 0 || i == 2)){
     if (!zenMode){
       shotCounter ++;
-      ballSpeed *= change;
-    }
-    if(shotCounter >= zenThreshold && !zenMode){
-      zenMode = true;
-      ballSpeed = delayDefault;
-      fadeIndex = 0;
-      generateRandomColor();
-      zenColor[0]=50; zenColor[1]=50; zenColor[2]=50;
+      ballSpeed -= change;
+      if(ballSpeed < 100){
+        ballSpeed = 100;
+      }
     }
     if (zenMode){
       //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -341,21 +361,21 @@ void moveball(){
   switch(shotType){
     case 0:
       if (zenMode){
-        curLedIndex = (int)Circ_easeInOut(timer, hitIndex, endPoint, ballSpeed/delayAmount);
+        curLedIndex = (int)Circ_easeOut(timer, hitIndex, endPoint, ballSpeed/delayAmount);
       }else{
-        curLedIndex = (int)Circ_easeInOut(timer, hitIndex, endPoint, ballSpeed/delayAmount);
+        curLedIndex = (int)Circ_easeOut(timer, hitIndex, endPoint, ballSpeed/delayAmount);
       }
     break;
     case 1:
       if (zenMode){
-        curLedIndex = (int)Linear_easeNone(timer, hitIndex, endPoint, ballSpeed/delayAmount);
+        curLedIndex = (int)Linear_easeNone(timer, hitIndex, endPoint, (ballSpeed/2)/delayAmount);
       }else{
-        curLedIndex = (int)Linear_easeNone(timer, hitIndex, endPoint, ballSpeed/delayAmount);
+        curLedIndex = (int)Linear_easeNone(timer, hitIndex, endPoint, (ballSpeed/2)/delayAmount);
       }
       
     break;
     case 2:
-      curLedIndex = (int)Bounce_easeOut(timer, hitIndex, endPoint, ballSpeed/delayAmount);
+      curLedIndex = (int)Expo_easeOut(timer, hitIndex, endPoint, ballSpeed/delayAmount);
     break;
   }
 
